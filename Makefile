@@ -166,6 +166,7 @@ UPROGS=\
 	_sh\
 	_wc\
 	_zombie\
+	_p29\
 
 fs.img: mkfs $(UPROGS)
 	./mkfs fs.img $(UPROGS)
