@@ -222,5 +222,4 @@ submitdir:
 	mkdir -p ${sfolder}
 
 submit: clean submitdir
-	diff -uNr  /home/proj0-base  . > ${sfolder}/proj0.patch; [ $$? -le 1 ]
-
+	diff -uNrX .gitignore /home/proj0-base . > ${sfolder}/proj0.patch; [ $$? -le 1 ]
