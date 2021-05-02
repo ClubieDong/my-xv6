@@ -166,9 +166,11 @@ UPROGS=\
 	_sh\
 	_wc\
 	_zombie\
+	_shutdown\
+	_forktest\
 
-fs.img: mkfs $(UPROGS)
-	./mkfs fs.img $(UPROGS)
+fs.img: mkfs  $(UPROGS)
+	./mkfs fs.img  $(UPROGS)
 
 -include *.d
 
@@ -176,11 +178,10 @@ clean:
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*.o *.d *.asm *.sym vectors.S bootblock entryother \
 	initcode initcode.out kernel xv6.img fs.img kernelmemfs mkfs \
-	.gdbinit \
+	.gdbinit core \
 	$(UPROGS)
 
 
-# run in emulators
 
 
 # try to generate a unique GDB port
@@ -214,11 +215,10 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 
-sfolder=${HOME}/submit-proj0
+sfolder=${HOME}/submit-proj1
 
 submitdir:
 	mkdir -p ${sfolder}
 
 submit: clean submitdir
-	diff -uNr  /home/proj0-base  . > ${sfolder}/proj0.patch; [ $$? -le 1 ]
-
+	diff -uNrX .gitignore /home/proj1-base . > ${sfolder}/proj1.patch; [ $$? -le 1 ]
