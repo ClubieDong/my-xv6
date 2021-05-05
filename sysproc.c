@@ -92,6 +92,10 @@ sys_uptime(void)
 
 int
 sys_shutdown(void){
+  int a;
+  if (argint(0, &a) < 0)
+    return -1;
+  cprintf("Leaving with code %d.\n", a);
   outw(0x604, 0x2000);
   return 0;
 }
