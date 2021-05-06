@@ -12,6 +12,8 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+int fork_winner_setting = 0;
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -217,6 +219,9 @@ fork(void)
   np->state = RUNNABLE;
 
   release(&ptable.lock);
+
+  if (fork_winner_setting)
+    yield();
 
   return pid;
 }

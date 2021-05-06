@@ -13,6 +13,20 @@ sys_fork(void)
   return fork();
 }
 
+// defined in `proc.c`
+extern int fork_winner_setting;
+int
+sys_fork_winner(void)
+{
+  int n;
+  if(argint(0, &n) < 0)
+    return -1;
+  if (n != 0 && n != 1)
+    return -1;
+  fork_winner_setting = n;
+  return 0;
+}
+
 int
 sys_exit(void)
 {
