@@ -221,6 +221,44 @@ fork(void)
   return pid;
 }
 
+int 
+clone(void *(*fn)(void *), void *stack, void *arg)
+{
+  struct proc *np, *curproc = myproc();
+
+  // Allocate process.
+  if((np = allocproc()) == 0)
+    return -1;
+
+  // Copy process state from proc.
+  np->sz = curproc->sz;
+  np->pgdir = curproc->pgdir;
+  // Set curproc as parent of new thread.
+  np->parent = curproc;
+  *np->tf = *curproc->tf;
+  for(int i = 0; i < NOFILE; i++)
+    if(curproc->ofile[i])
+      np->ofile[i] = filedup(curproc->ofile[i]);
+  // No need to `idup(curproc->cwd)`
+  // because it's completely controlled by OS, accordingly:
+  // `thread_exit` DO NOT call `iput(curproc->cwd)`
+  // `exit` DO call `iput(curproc->cwd)`
+  np->cwd = curproc->cwd;
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  void** sp = stack + PGSIZE;
+  *--sp = arg;  // push arg
+  *--sp = (void*)0xFFFFFFF0;  // push return address
+  np->tf->eip = (uint)fn;
+  np->tf->esp = (uint)sp;
+
+  acquire(&ptable.lock);
+  np->state = RUNNABLE;
+  release(&ptable.lock);
+
+  return np->pid;
+}
+
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
@@ -249,6 +287,33 @@ exit(void)
 
   acquire(&ptable.lock);
 
+  // Clean child threads
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent != curproc)
+      continue;
+    // I tried my best not to add anything in PCB
+    // I use esp to tell whether it's process or thread
+    // All process's stack is at 0x3000
+    if(PGROUNDDOWN(p->tf->esp) == 0x3000)
+      continue;
+    // Close all open files.
+    for(fd = 0; fd < NOFILE; fd++)
+      if(p->ofile[fd]){
+        fileclose(p->ofile[fd]);
+        p->ofile[fd] = 0;
+      }
+    // Do not call `iput`, see `clone`
+    p->cwd = 0;
+    // As does in `join`
+    kfree(p->kstack);
+    p->kstack = 0;
+    p->pid = 0;
+    p->parent = 0;
+    p->name[0] = 0;
+    p->killed = 0;
+    p->state = UNUSED;
+  }
+
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
@@ -260,6 +325,42 @@ exit(void)
         wakeup1(initproc);
     }
   }
+
+  // Jump into the scheduler, never to return.
+  curproc->state = ZOMBIE;
+  sched();
+  panic("zombie exit");
+}
+
+void
+thread_exit(void *ret)
+{
+  struct proc *curproc = myproc();
+
+  if(curproc == initproc)
+    panic("init exiting");
+
+  // Push `ret` to thread stack
+  curproc->tf->esp -= sizeof(void *);
+  *(void **)curproc->tf->esp = ret;
+
+  // Close all open files.
+  for(int fd = 0; fd < NOFILE; fd++){
+    if(curproc->ofile[fd]){
+      fileclose(curproc->ofile[fd]);
+      curproc->ofile[fd] = 0;
+    }
+  }
+  // Do not call `iput`, see `clone`
+  curproc->cwd = 0;
+
+  acquire(&ptable.lock);
+
+  // Parent might be sleeping in wait().
+  wakeup1(curproc->parent);
+
+  // Thread should not have children:
+  // So there's no need to pass abandoned children to init.
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
@@ -309,6 +410,47 @@ wait(void)
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
+}
+
+void
+join(int tid, void **ret_p, void **stack)
+{
+  struct proc *curproc = myproc(), *tidproc = 0;
+  
+  acquire(&ptable.lock);
+
+  // Find tid
+  for(struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if(p->pid == tid) {
+      tidproc = p;
+      break;
+    }
+
+  // Should I exit silently without error code?
+  if (!tidproc)
+    goto exit;
+  if (tidproc->parent != curproc)
+    goto exit;
+  
+  // Wait until tidproc exits
+  while (tidproc->state != ZOMBIE && !curproc->killed)
+    sleep(curproc, &ptable.lock);
+
+  // `ret_p` is stored at the top of stack
+  *ret_p = *(void **)tidproc->tf->esp;
+  // `stack` is page aligned
+  *stack = (void **)PGROUNDDOWN(tidproc->tf->esp);
+
+  kfree(tidproc->kstack);
+  tidproc->kstack = 0;
+  tidproc->pid = 0;
+  tidproc->parent = 0;
+  tidproc->name[0] = 0;
+  tidproc->killed = 0;
+  tidproc->state = UNUSED;
+
+exit:
+  release(&ptable.lock);
 }
 
 //PAGEBREAK: 42

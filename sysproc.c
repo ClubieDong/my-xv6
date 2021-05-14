@@ -14,6 +14,55 @@ sys_fork(void)
 }
 
 int
+sys_clone(void)
+{
+  // int clone(void *(*fn)(void *), void *stack, void *arg);
+  void *(*fn)(void *);
+  void *stack, *arg;
+
+  // Idk how big is the function, so `size` is set to 0
+  if(argptr(0, (char**)&fn, 0) < 0)
+    return -1;
+  if(argptr(1, (char**)&stack, PGSIZE) < 0)
+    return -1;
+  // Idk how big is the argument neither, so `size` is set to 0,
+  // what if arg == NULL ?
+  if(argptr(2, (char**)&arg, PGSIZE) < 0)
+    return -1;
+  return clone(fn, stack, arg);
+}
+
+int
+sys_join(void)
+{
+  // void join(int tid, void **ret_p, void **stack)
+  int tid;
+  void **ret_p, **stack;
+
+  if(argint(0, &tid) < 0)
+    return -1;
+  if(argptr(1, (char**)&ret_p, sizeof(ret_p)) < 0)
+    return -1;
+  if(argptr(2, (char**)&stack, sizeof(stack)) < 0)
+    return -1;
+  join(tid, ret_p, stack);
+  return 0;
+}
+
+int
+sys_thread_exit(void)
+{
+  // void thread_exit(void *ret)
+  void *ret;
+
+  // Idk how big is the argument, so `size` is set to 0 (same as `sys_clone`)
+  if(argptr(0, (char**)&ret, 0) < 0)
+    return -1;
+  thread_exit(ret);
+  return 0;  // actually never return
+}
+
+int
 sys_exit(void)
 {
   exit();

@@ -78,6 +78,12 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
 
+  case T_PGFLT:
+    // Return from thread
+    if (myproc()->tf->eip == 0xFFFFFFF0)
+      thread_exit((void *)myproc()->tf->eax);
+    // Fall through
+
   //PAGEBREAK: 13
   default:
     if(myproc() == 0 || (tf->cs&3) == 0){
