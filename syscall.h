@@ -20,3 +20,9 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+#define SYS_shutdown 22
+#define SYS_clone 23
+#define SYS_join 24
+#define SYS_thread_exit 25
+#define SYS_set_priority 26
+#define SYS_enable_sched_display 27

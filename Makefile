@@ -136,7 +136,7 @@ tags: $(OBJS) entryother.S _init
 vectors.S: vectors.pl
 	perl vectors.pl > vectors.S
 
-ULIB = ulib.o usys.o printf.o umalloc.o
+ULIB = ulib.o usys.o printf.o umalloc.o xthread.o
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
@@ -166,9 +166,12 @@ UPROGS=\
 	_sh\
 	_wc\
 	_zombie\
+	_shutdown\
+	_schedtest\
+	_threadtest\
 
-fs.img: mkfs $(UPROGS)
-	./mkfs fs.img $(UPROGS)
+fs.img: mkfs  $(UPROGS)
+	./mkfs fs.img  $(UPROGS)
 
 -include *.d
 
@@ -178,9 +181,6 @@ clean:
 	initcode initcode.out kernel xv6.img fs.img kernelmemfs mkfs \
 	.gdbinit \
 	$(UPROGS)
-
-
-# run in emulators
 
 
 # try to generate a unique GDB port
@@ -214,11 +214,10 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 
-sfolder=${HOME}/submit-proj0
+sfolder=${HOME}/submit-proj2
 
 submitdir:
 	mkdir -p ${sfolder}
 
 submit: clean submitdir
-	diff -uNr  /home/proj0-base  . > ${sfolder}/proj0.patch; [ $$? -le 1 ]
-
+	diff -uNrX .gitignore /home/proj2-base . > ${sfolder}/proj2.patch; [ $$? -le 1 ]
