@@ -34,6 +34,10 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// valid priority is from 0 to PRIORITY_LEVEL
+#define PRIORITY_LEVEL 4
+#define DEFAULT_PRIORITY 2
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -41,6 +45,7 @@ struct proc {
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
   int pid;                     // Process ID
+  int prior;                   // Priority
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process

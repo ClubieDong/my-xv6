@@ -107,6 +107,8 @@ extern int sys_shutdown(void);
 extern int sys_clone(void);
 extern int sys_join(void);
 extern int sys_thread_exit(void);
+extern int sys_set_priority(void);
+extern int sys_enable_sched_display(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -134,6 +136,8 @@ static int (*syscalls[])(void) = {
 [SYS_clone]   sys_clone,
 [SYS_join]    sys_join,
 [SYS_thread_exit] sys_thread_exit,
+[SYS_set_priority] sys_set_priority,
+[SYS_enable_sched_display] sys_enable_sched_display,
 };
 
 void

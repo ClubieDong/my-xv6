@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "spinlock.h"
 
 int
 sys_fork(void)
@@ -142,5 +143,43 @@ sys_uptime(void)
 int
 sys_shutdown(void){
   outw(0x604, 0x2000);
+  return 0;
+}
+
+extern struct {
+  struct spinlock lock;
+  struct proc proc[NPROC];
+} ptable;
+int
+sys_set_priority(void){
+  int pid, prior;
+
+  if (argint(0, &pid) < 0)
+    return -1;
+  if (argint(1, &prior) < 0)
+    return -1;
+  if (prior < 0 || prior >= PRIORITY_LEVEL)
+    return -1;
+  acquire(&ptable.lock);
+  for (struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if (p->pid == pid) {
+      p->prior = prior;
+      release(&ptable.lock);
+      return 0;
+    }
+  release(&ptable.lock);
+  return -1;
+}
+
+extern int display_enabled;
+int
+sys_enable_sched_display(void){
+  int n;
+
+  if(argint(0, &n) < 0)
+    return -1;
+  if (n != 0 && n != 1)
+    return -1;
+  display_enabled = n;
   return 0;
 }
