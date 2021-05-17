@@ -28,7 +28,7 @@ sys_clone(void)
     return -1;
   // Idk how big is the argument neither, so `size` is set to 0,
   // what if arg == NULL ?
-  if(argptr(2, (char**)&arg, PGSIZE) < 0)
+  if(argptr(2, (char**)&arg, 0) < 0)
     return -1;
   return clone(fn, stack, arg);
 }
