@@ -532,3 +532,39 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+int alloc_sem(int v)
+{
+  cprintf("[alloc_sem] %d\n", v);
+  return 0;
+}
+
+int wait_sem(int i)
+{
+  cprintf("[wait_sem] %d\n", i);
+  return 0;
+}
+
+int signal_sem(int i)
+{
+  cprintf("[signal_sem] %d\n", i);
+  return 0;
+}
+
+int dealloc_sem(int i)
+{
+  cprintf("[dealloc_sem] %d\n", i);
+  return 0;
+}
+
+int msg_send(int pid, int a, int b, int c)
+{
+  cprintf("[msg_send] %d %d %d %d\n", pid, a, b, c);
+  return 0;
+}
+
+int msg_receive(int *a, int *b, int *c)
+{
+  cprintf("[msg_receive] %p %p %p\n", a, b, c);
+  return 0;
+}

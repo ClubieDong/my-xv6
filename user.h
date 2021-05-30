@@ -23,6 +23,13 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int shutdown(void);
+int alloc_sem(int);
+int wait_sem(int);
+int signal_sem(int);
+int dealloc_sem(int);
+int msg_send(int, int, int, int);
+int msg_receive(int *, int *, int *);
 
 // ulib.c
 int stat(char*, struct stat*);
