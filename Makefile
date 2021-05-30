@@ -166,9 +166,10 @@ UPROGS=\
 	_sh\
 	_wc\
 	_zombie\
+	_shutdown\
 
-fs.img: mkfs $(UPROGS)
-	./mkfs fs.img $(UPROGS)
+fs.img: mkfs  $(UPROGS)
+	./mkfs fs.img  $(UPROGS)
 
 -include *.d
 
@@ -179,8 +180,6 @@ clean:
 	.gdbinit \
 	$(UPROGS)
 
-
-# run in emulators
 
 
 # try to generate a unique GDB port
@@ -210,15 +209,11 @@ qemu-gdb: fs.img xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 
-qemu-nox-gdb: fs.img xv6.img .gdbinit
-	@echo "*** Now run 'gdb'." 1>&2
-	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 
-sfolder=${HOME}/submit-proj0
+sfolder=${HOME}/submit-proj3
 
 submitdir:
 	mkdir -p ${sfolder}
 
 submit: clean submitdir
-	diff -uNr  /home/proj0-base  . > ${sfolder}/proj0.patch; [ $$? -le 1 ]
-
+	diff -uNrX .gitignore /home/proj3-base . > ${sfolder}/proj3.patch; [ $$? -le 1 ]
