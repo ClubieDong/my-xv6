@@ -120,6 +120,7 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+void            semInit(void);
 int             alloc_sem(int);
 int             wait_sem(int);
 int             signal_sem(int);

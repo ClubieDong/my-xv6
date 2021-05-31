@@ -533,28 +533,153 @@ procdump(void)
   }
 }
 
+#define NSEM 100
+struct listNode {
+  struct listNode *next;
+} proclist[NPROC];
+struct semaphore {
+  int using;
+  struct spinlock lock;
+  union {
+    struct {
+      int value;
+      struct listNode *waitingHead, *waitingTail;
+    };
+    struct semaphore *nextFree;
+  };
+} sems[NSEM];
+struct semaphore *semFreeList;
+struct spinlock semLock;
+
+void semInit()
+{
+  initlock(&semLock, "semaphore");
+  for (int i = 0; i < NSEM; ++i) {
+    sems[i].nextFree = &sems[i + 1];
+    initlock(&sems[i].lock, "single semaphore");
+  }
+  semFreeList = sems;
+  sems[NSEM - 1].nextFree = 0;
+}
+
 int alloc_sem(int v)
 {
-  cprintf("[alloc_sem] %d\n", v);
-  return 0;
+  // Check
+  if (v < 0)
+    return -1;
+  // Allocate
+  acquire(&semLock);
+  if (!semFreeList) {
+    release(&semLock);
+    return -1;
+  }
+  struct semaphore *psem = semFreeList;
+  semFreeList = psem->nextFree;
+  release(&semLock);
+  // Setup
+  acquire(&psem->lock);
+  psem->using = 1;
+  psem->value = v;
+  psem->waitingHead = psem->waitingTail = 0;
+  release(&psem->lock);
+  return psem - sems;
 }
 
 int wait_sem(int i)
 {
-  cprintf("[wait_sem] %d\n", i);
-  return 0;
+  // Check
+  if (i < 0 || i >= NSEM)
+    return -1;
+  struct semaphore *psem = &sems[i];
+  acquire(&psem->lock);
+  if (!psem->using) {
+    release(&psem->lock);
+    return -1;
+  }
+  // Decrement
+  --psem->value;
+  if (psem->value >= 0) {
+    release(&psem->lock);
+    return 1;
+  }
+  // Add to queue
+  struct proc *pproc = myproc();
+  struct listNode *pnode = &proclist[pproc - ptable.proc];
+  if (psem->waitingTail)
+    psem->waitingTail->next = pnode;
+  else
+    psem->waitingHead = pnode;
+  psem->waitingTail = pnode;
+  pnode->next = 0;
+  // Sleep
+  acquire(&ptable.lock);
+  release(&psem->lock);
+  pproc->state = SLEEPING;
+  sched();
+  release(&ptable.lock);
+  return 1;
 }
 
 int signal_sem(int i)
 {
-  cprintf("[signal_sem] %d\n", i);
-  return 0;
+  // Check
+  if (i < 0 || i >= NSEM)
+    return -1;
+  struct semaphore *psem = &sems[i];
+  acquire(&psem->lock);
+  if (!psem->using) {
+    release(&psem->lock);
+    return -1;
+  }
+  // Increment
+  ++psem->value;
+  if (psem->value > 0) {
+    release(&psem->lock);
+    return 1;
+  }
+  // Remove from queue
+  struct listNode *pnode = psem->waitingHead;
+  psem->waitingHead = pnode->next;
+  if (!psem->waitingHead)
+    psem->waitingTail = 0;
+  release(&psem->lock);
+  // Wakeup
+  struct proc *pproc = &ptable.proc[pnode - proclist];
+  acquire(&ptable.lock);
+  if (pproc->state == SLEEPING)
+    pproc->state = RUNNABLE;
+  release(&ptable.lock);
+  return 1;
 }
 
 int dealloc_sem(int i)
 {
-  cprintf("[dealloc_sem] %d\n", i);
-  return 0;
+  // Check
+  if (i < 0 || i >= NSEM)
+    return -1;
+  struct semaphore *psem = &sems[i];
+  acquire(&psem->lock);
+  if (!psem->using) {
+    release(&psem->lock);
+    return -1;
+  }
+  // Kill waiting processes
+  acquire(&ptable.lock);
+  for (struct listNode *p = psem->waitingHead; p; p = p->next) {
+    struct proc *pproc = &ptable.proc[p - proclist];
+    pproc->killed = 1;
+    if (pproc->state == SLEEPING)
+      pproc->state = RUNNABLE;
+  }
+  release(&ptable.lock);
+  // Add to free list
+  psem->using = 0;
+  acquire(&semLock);
+  psem->nextFree = semFreeList;
+  semFreeList = psem;
+  release(&semLock);
+  release(&psem->lock);
+  return 1;
 }
 
 int msg_send(int pid, int a, int b, int c)
