@@ -4,7 +4,9 @@ define hook-stop
   # There doesn't seem to be a good way to detect if we're in 16- or
   # 32-bit mode, but in 32-bit mode we always run with CS == 8 in the
   # kernel and CS == 35 in user space
-  # 2018-3-15 20:25 find that $cs may be 27 in user space, donnot know why；20210416 random words
+  # 2018-3-15 20:25 find that $cs may be 27 in user space, donnot know why
+  # this line should not appear in any diff file 201904190926
+  # proj3 2021-5-19
   if $cs == 8 || $cs == 35 || $cs == 27
     if $lastcs != 8 && $lastcs != 35 && $lastcs != 27
       set architecture i386

@@ -267,6 +267,14 @@ exit(void)
   panic("zombie exit");
 }
 
+struct message
+{
+  int pid, a, b, c;
+  int receiver_sem, sender_sem;
+  struct spinlock lock;
+} msgs[NPROC];
+int dealloc_sem_lk(int, int);
+
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int
@@ -287,6 +295,19 @@ wait(void)
       if(p->state == ZOMBIE){
         // Found one.
         pid = p->pid;
+
+        struct message *pmsg = &msgs[p - ptable.proc];
+        if (pmsg->receiver_sem != -1) {
+          if (dealloc_sem_lk(pmsg->receiver_sem, 0) < 0)
+            panic("Fail to dealloc");
+          pmsg->receiver_sem = -1;
+        }
+        if (pmsg->sender_sem != -1) {
+          if (dealloc_sem_lk(pmsg->sender_sem, 0) < 0)
+            panic("Fail to dealloc");
+          pmsg->sender_sem = -1;
+        }
+
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
@@ -652,7 +673,7 @@ int signal_sem(int i)
   return 1;
 }
 
-int dealloc_sem(int i)
+int dealloc_sem_lk(int i, int lk)
 {
   // Check
   if (i < 0 || i >= NSEM)
@@ -664,14 +685,16 @@ int dealloc_sem(int i)
     return -1;
   }
   // Kill waiting processes
-  acquire(&ptable.lock);
+  if (lk)
+    acquire(&ptable.lock);
   for (struct listNode *p = psem->waitingHead; p; p = p->next) {
     struct proc *pproc = &ptable.proc[p - proclist];
     pproc->killed = 1;
     if (pproc->state == SLEEPING)
       pproc->state = RUNNABLE;
   }
-  release(&ptable.lock);
+  if (lk)
+    release(&ptable.lock);
   // Add to free list
   psem->using = 0;
   acquire(&semLock);
@@ -682,14 +705,74 @@ int dealloc_sem(int i)
   return 1;
 }
 
+int dealloc_sem(int i)
+{
+  return dealloc_sem_lk(i, 1);
+}
+
+void msgInit(void)
+{
+  for (int i = 0; i < NPROC; ++i) {
+    msgs[i].receiver_sem = msgs[i].sender_sem = -1;
+    initlock(&msgs[i].lock, "message");
+  }
+}
+
+int betterAllocSem(int *sem, int v, struct spinlock *lock)
+{
+  acquire(lock);
+  if (*sem == -1) {
+    int t = alloc_sem(v);
+    if (t < 0) {
+      release(lock);
+      return -1;
+    }
+    *sem = t;
+  }
+  release(lock);
+  return 1;
+}
+
 int msg_send(int pid, int a, int b, int c)
 {
-  cprintf("[msg_send] %d %d %d %d\n", pid, a, b, c);
-  return 0;
+  acquire(&ptable.lock);
+  struct message *pmsg = 0;
+  for(struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; ++p)
+    if (p->pid == pid) {
+      pmsg = &msgs[p - ptable.proc];
+      break;
+    }
+  release(&ptable.lock);
+  if (!pmsg)
+    return -1;
+  if (betterAllocSem(&pmsg->receiver_sem, 0, &pmsg->lock) < 0)
+    return -1;
+  if (wait_sem(pmsg->receiver_sem) < 0)
+    return -1;
+  pmsg->pid = myproc()->pid;
+  pmsg->a = a;
+  pmsg->b = b;
+  pmsg->c = c;
+  if (betterAllocSem(&pmsg->sender_sem, 0, &pmsg->lock) < 0)
+    return -1;
+  if (signal_sem(pmsg->sender_sem) < 0)
+    return -1;
+  return 1;
 }
 
 int msg_receive(int *a, int *b, int *c)
 {
-  cprintf("[msg_receive] %p %p %p\n", a, b, c);
-  return 0;
+  struct message *pmsg = &msgs[myproc() - ptable.proc];
+  if (betterAllocSem(&pmsg->receiver_sem, 0, &pmsg->lock) < 0)
+    return -1;
+  if (signal_sem(pmsg->receiver_sem) < 0)
+    return -1;
+  if (betterAllocSem(&pmsg->sender_sem, 0, &pmsg->lock) < 0)
+    return -1;
+  if (wait_sem(pmsg->sender_sem) < 0)
+    return -1;
+  *a = pmsg->a;
+  *b = pmsg->b;
+  *c = pmsg->c;
+  return pmsg->pid;
 }

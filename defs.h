@@ -125,6 +125,7 @@ int             alloc_sem(int);
 int             wait_sem(int);
 int             signal_sem(int);
 int             dealloc_sem(int);
+void            msgInit(void);
 int             msg_send(int, int, int, int);
 int             msg_receive(int *, int *, int *);
 
