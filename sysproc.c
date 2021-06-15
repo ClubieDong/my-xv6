@@ -89,3 +89,15 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_shutdown(void){
+  outw(0x604, 0x2000);
+  return 0;
+}
+
+extern int free_frame_cnt;
+int
+sys_get_free_frame_cnt(void){
+  return free_frame_cnt;
+}

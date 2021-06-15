@@ -14,6 +14,8 @@ struct {
 
 static struct proc *initproc;
 
+int fork_winner=0;
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -215,6 +217,11 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  
+  if(fork_winner){
+    myproc()->state=RUNNABLE;
+    sched();
+  }
 
   release(&ptable.lock);
 

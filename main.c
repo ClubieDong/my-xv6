@@ -47,6 +47,7 @@ mpenter(void)
   mpmain();
 }
 
+extern int free_frame_cnt;
 // Common CPU setup code.
 static void
 mpmain(void)
@@ -54,6 +55,7 @@ mpmain(void)
   cprintf("cpu%d: starting %d\n", cpuid(), cpuid());
   idtinit();       // load idt register
   xchg(&(mycpu()->started), 1); // tell startothers() we're up
+  cprintf("number of free frames: %d \n",free_frame_cnt);
   scheduler();     // start running processes
 }
 

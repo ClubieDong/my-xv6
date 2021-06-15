@@ -23,6 +23,7 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int get_free_frame_cnt(void);
 
 // ulib.c
 int stat(char*, struct stat*);
