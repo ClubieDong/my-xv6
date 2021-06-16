@@ -32,6 +32,7 @@ idtinit(void)
   lidt(idt, sizeof(idt));
 }
 
+extern int handle_pgflt(struct trapframe *);
 //PAGEBREAK: 41
 void
 trap(struct trapframe *tf)
@@ -77,6 +78,10 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
+
+  case T_PGFLT:
+    if (handle_pgflt(tf))
+      break;
 
   //PAGEBREAK: 13
   default:

@@ -6,6 +6,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "elf.h"
+#include "spinlock.h"
 
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
@@ -310,15 +311,21 @@ clearpteu(pde_t *pgdir, char *uva)
   *pte &= ~PTE_U;
 }
 
+extern struct {
+  struct spinlock lock;
+  int use_lock;
+  struct run *freelist;
+  char ref_count[PHYSTOP / PGSIZE];
+} kmem;
+
 // Given a parent process's page table, create a copy
 // of it for a child.
 pde_t*
-copyuvm(pde_t *pgdir, uint sz)
+copyuvm_on_write(pde_t *pgdir, uint sz)
 {
   pde_t *d;
   pte_t *pte;
   uint pa, i, flags;
-  char *mem;
 
   if((d = setupkvm()) == 0)
     return 0;
@@ -327,13 +334,20 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
       panic("copyuvm: page not present");
+    if (*pte & PTE_W) {
+      *pte |= PTE_COW;
+      *pte &= ~PTE_W;
+      lcr3(V2P(myproc()->pgdir));
+    }
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
+    if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0)
       goto bad;
-    memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0)
-      goto bad;
+    if(kmem.use_lock)
+      acquire(&kmem.lock);
+    ++kmem.ref_count[pa >> PGSHIFT];
+    if(kmem.use_lock)
+      release(&kmem.lock);
   }
   return d;
 
@@ -381,6 +395,48 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
     va = va0 + PGSIZE;
   }
   return 0;
+}
+
+int handle_pgflt(struct trapframe *tf)
+{
+  if (tf->err != 7)
+    return 0;
+  struct proc *pproc = myproc();
+  pte_t* pte = walkpgdir(pproc->pgdir, (void *)rcr2(), 0);
+  if (!(*pte & PTE_COW))
+    return 0;
+
+  uint pa = PTE_ADDR(*pte);
+  if (kmem.use_lock)
+    acquire(&kmem.lock);
+  char refc = kmem.ref_count[pa >> PGSHIFT];
+  if (kmem.use_lock)
+    release(&kmem.lock);
+
+  if (refc == 0)
+    panic("handle_pgflt: ref count == 0");
+
+  *pte &= ~PTE_COW;
+  *pte |= PTE_W;
+  if (refc > 1) {
+    char *mem;
+    if((mem = kalloc()) == 0) {
+      cprintf("Out of memory when handling copy-on-write page fault\n");
+      pproc->killed = 1;
+      return 1;
+    }
+    memmove(mem, (char*)P2V(pa), PGSIZE);
+    *pte = V2P(mem) | PTE_FLAGS(*pte);
+
+    if (kmem.use_lock)
+      acquire(&kmem.lock);
+    --kmem.ref_count[pa >> PGSHIFT];
+    if (kmem.use_lock)
+      release(&kmem.lock);
+  }
+
+  lcr3(V2P(pproc->pgdir));
+  return 1;
 }
 
 //PAGEBREAK!

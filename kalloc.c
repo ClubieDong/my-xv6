@@ -21,6 +21,7 @@ struct {
   struct spinlock lock;
   int use_lock;
   struct run *freelist;
+  char ref_count[PHYSTOP / PGSIZE];
 } kmem;
 
 // Initialization happens in two phases.
@@ -33,6 +34,8 @@ kinit1(void *vstart, void *vend)
 {
   initlock(&kmem.lock, "kmem");
   kmem.use_lock = 0;
+  for (int i = 0; i < PHYSTOP / PGSIZE; ++i)
+    kmem.ref_count[i] = -1;
   freerange(vstart, vend);
 }
 
@@ -64,6 +67,25 @@ kfree(char *v)
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
 
+  char* prefc = &kmem.ref_count[V2P(v) >> PGSHIFT];
+  if (kmem.use_lock)
+    acquire(&kmem.lock);
+  char refc = *prefc;
+  if (kmem.use_lock)
+    release(&kmem.lock);
+
+  if (refc != -1) {
+    if (refc == 0)
+      panic("kfree: ref count == 0");
+    if (kmem.use_lock)
+      acquire(&kmem.lock);
+    refc = --*prefc;
+    if (kmem.use_lock)
+      release(&kmem.lock);
+    if (refc > 0)
+      return;
+  }
+
   // Fill with junk to catch dangling refs.
   memset(v, 1, PGSIZE);
 
@@ -91,6 +113,7 @@ kalloc(void)
   if(r){
     kmem.freelist = r->next;
     free_frame_cnt--;
+    kmem.ref_count[V2P(r) >> PGSHIFT] = 1;
   }
   if(kmem.use_lock)
     release(&kmem.lock);
