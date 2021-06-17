@@ -174,6 +174,7 @@ void            uartputc(int);
 void            seginit(void);
 void            kvmalloc(void);
 pde_t*          setupkvm(void);
+pde_t*          setupuvm(void);
 char*           uva2ka(pde_t*, char*);
 int             allocuvm(pde_t*, uint, uint);
 int             deallocuvm(pde_t*, uint, uint);

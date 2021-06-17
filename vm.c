@@ -115,6 +115,13 @@ static struct kmap {
  { (void*)DEVSPACE, DEVSPACE,      0,         PTE_W}, // more devices
 };
 
+extern struct {
+  struct spinlock lock;
+  int use_lock;
+  struct run *freelist;
+  char ref_count[PHYSTOP / PGSIZE];
+} kmem;
+
 // Set up kernel part of a page table.
 pde_t*
 setupkvm(void)
@@ -132,6 +139,23 @@ setupkvm(void)
                 (uint)k->phys_start, k->perm) < 0) {
       freevm(pgdir);
       return 0;
+    }
+  return pgdir;
+}
+
+pde_t* setupuvm(void)
+{
+  pde_t *pgdir = (pde_t*)kalloc();
+  if(!pgdir)
+    return 0;
+  memmove(pgdir, kpgdir, PGSIZE);
+  for (int i = 0; i < NPTENTRIES; ++i)
+    if (pgdir[i] & PTE_P) {
+      if (kmem.use_lock)
+        acquire(&kmem.lock);
+      ++kmem.ref_count[pgdir[i] >> PGSHIFT];
+      if (kmem.use_lock)
+        release(&kmem.lock);
     }
   return pgdir;
 }
@@ -311,13 +335,6 @@ clearpteu(pde_t *pgdir, char *uva)
   *pte &= ~PTE_U;
 }
 
-extern struct {
-  struct spinlock lock;
-  int use_lock;
-  struct run *freelist;
-  char ref_count[PHYSTOP / PGSIZE];
-} kmem;
-
 // Given a parent process's page table, create a copy
 // of it for a child.
 pde_t*
@@ -327,7 +344,7 @@ copyuvm_on_write(pde_t *pgdir, uint sz)
   pte_t *pte;
   uint pa, i, flags;
 
-  if((d = setupkvm()) == 0)
+  if((d = setupuvm()) == 0)
     return 0;
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
