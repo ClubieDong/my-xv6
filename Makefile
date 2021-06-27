@@ -166,9 +166,12 @@ UPROGS=\
 	_sh\
 	_wc\
 	_zombie\
+	_shutdown\
+	_infread\
+	_deadloop\
 
-fs.img: mkfs $(UPROGS)
-	./mkfs fs.img $(UPROGS)
+fs.img: mkfs README $(UPROGS)
+	./mkfs fs.img README $(UPROGS)
 
 -include *.d
 
@@ -179,6 +182,15 @@ clean:
 	.gdbinit \
 	$(UPROGS)
 
+# make a printout
+FILES = $(shell grep -v '^\#' runoff.list)
+PRINT = runoff.list runoff.spec README toc.hdr toc.ftr $(FILES)
+
+xv6.pdf: $(PRINT)
+	./runoff
+	ls -l xv6.pdf
+
+print: xv6.pdf
 
 # run in emulators
 
@@ -213,12 +225,17 @@ qemu-gdb: fs.img xv6.img .gdbinit
 qemu-nox-gdb: fs.img xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
+	
+proj5: xv6.img
+	$(QEMU) -nographic -drive file=fs5.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 256 $(QEMUEXTRA)
+	
+proj5i: xv6.img
+	$(QEMU) -nographic -drive file=fs5i.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 256 $(QEMUEXTRA)
 
-sfolder=${HOME}/submit-proj0
+sfolder=${HOME}/submit-proj5
 
 submitdir:
 	mkdir -p ${sfolder}
 
 submit: clean submitdir
-	diff -uNr  /home/proj0-base  . > ${sfolder}/proj0.patch; [ $$? -le 1 ]
-
+	diff -uNr -x ".git" -x ".gitignore" -x ".img" /home/proj5-base  . > ${sfolder}/proj5.patch; [ $$? -le 1 ]
