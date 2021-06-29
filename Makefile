@@ -4,6 +4,7 @@ OBJS = \
 	exec.o\
 	file.o\
 	fs.o\
+	fsck.o\
 	ide.o\
 	ioapic.o\
 	kalloc.o\

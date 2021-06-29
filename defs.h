@@ -53,6 +53,9 @@ int             readi(struct inode*, char*, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, char*, uint, uint);
 
+// fsck.c
+void            fsck(void);
+
 // ide.c
 void            ideinit(void);
 void            ideintr(void);
